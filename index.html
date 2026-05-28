@@ -154,9 +154,112 @@
 			</div>
 
 		</div>
+
+		<!-- 压力测试面板 -->
+		<div class="container stress-panel">
+			<div class="stress-header">
+				<h2>压力测试</h2>
+				<small>定时循环推送，context 金额自动累加</small>
+			</div>
+
+			<div class="row form-group">
+				<label class="control-label col-lg-2" for="initAmount">起始金额</label>
+				<div class="col-lg-5 col-md-6">
+					<div class="row">
+						<div class="col-md-6 input-container"><input class="form-control" id="initAmount" value="0.01" type="number" step="0.01" min="0.01"></div>
+						<div class="col-md-6 span-container"><span class="label label-warning">第一笔金额（元）</span></div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row form-group">
+				<label class="control-label col-lg-2" for="stepAmount">累加步长</label>
+				<div class="col-lg-5 col-md-6">
+					<div class="row">
+						<div class="col-md-6 input-container"><input class="form-control" id="stepAmount" value="0.01" type="number" step="0.01" min="0.01"></div>
+						<div class="col-md-6 span-container"><span class="label label-warning">每次累加金额（元）</span></div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row form-group">
+				<label class="control-label col-lg-2" for="intervalSec">推送间隔</label>
+				<div class="col-lg-5 col-md-6">
+					<div class="row">
+						<div class="col-md-6 input-container"><input class="form-control" id="intervalSec" value="2" type="number" step="0.1" min="0.5"></div>
+						<div class="col-md-6 span-container"><span class="label label-warning">秒，最小 0.5 秒</span></div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row form-group">
+				<label class="control-label col-lg-2" for="totalCount">推送次数</label>
+				<div class="col-lg-5 col-md-6">
+					<div class="row">
+						<div class="col-md-6 input-container"><input class="form-control" id="totalCount" value="100" type="number" step="1" min="1"></div>
+						<div class="col-md-6 span-container"><span class="label label-warning">0 = 不限次数</span></div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row form-group">
+				<label class="control-label col-lg-2" for="contextPattern">context 模板</label>
+				<div class="col-lg-5 col-md-6">
+					<div class="row">
+						<div class="col-md-8 input-container"><input class="form-control" id="contextPattern" value="" type="text" placeholder="如：微信收款成功{amount}元"></div>
+						<div class="col-md-4 span-container"><span class="label label-warning">{amount} 会被替换为金额</span></div>
+					</div>
+				</div>
+			</div>
+
+			<!-- 状态展示 -->
+			<div class="row form-group">
+				<label class="control-label col-lg-2">运行状态</label>
+				<div class="col-lg-5 col-md-6">
+					<div class="stress-status" id="stressStatus">
+						<span class="status-badge status-idle">空闲</span>
+						<span class="status-info" id="stressProgress">--</span>
+					</div>
+				</div>
+			</div>
+
+			<div class="row form-group">
+				<label class="control-label col-lg-2">推送日志</label>
+				<div class="col-lg-5 col-md-6">
+					<div class="stress-log" id="stressLog">
+						<div class="log-empty">等待开始推送…</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="stress-btns">
+				<button type="button" class="btn stress-btn-start" id="stressStartBtn">开始压测</button>
+				<button type="button" class="btn stress-btn-stop" id="stressStopBtn" disabled>停止</button>
+				<button type="button" class="btn stress-btn-clear" id="stressClearBtn">清空日志</button>
+			</div>
+		</div>
 	</div>
 	<script>
 		$(function() {
+			// ==================== 从浏览器读取已保存的凭证 ====================
+			var savedAppKey = localStorage.getItem('fly_sign_appKey') || '';
+			var savedAppSecret = localStorage.getItem('fly_sign_appSecret') || '';
+			var savedDevice = localStorage.getItem('fly_sign_device') || '';
+			$("input[name='appKey']").val(savedAppKey);
+			$("input[name='appSecret']").val(savedAppSecret);
+			$("input[name='device']").val(savedDevice);
+
+			// 输入时自动保存到浏览器
+			$("input[name='appKey']").on('input', function() {
+				localStorage.setItem('fly_sign_appKey', $(this).val());
+			});
+			$("input[name='appSecret']").on('input', function() {
+				localStorage.setItem('fly_sign_appSecret', $(this).val());
+			});
+			$("input[name='device']").on('input', function() {
+				localStorage.setItem('fly_sign_device', $(this).val());
+			});
+
 			$("#select_id").change(function() {
 				var checkValue = $("#select_id").val();
 				console.log(checkValue)
@@ -186,9 +289,20 @@
 					$("#biz_type").hide();
 				}
 			});
-			$("#signBtn").click(function() {
-				var typeVal = $("#select_id").val();
-				console.log(typeVal)
+
+			// 生成随机字符串
+			function randomStr(len) {
+				len = len || 16;
+				var chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
+				var result = '';
+				for (var i = 0; i < len; i++) {
+					result += chars.charAt(Math.floor(Math.random() * chars.length));
+				}
+				return result;
+			}
+
+			// 生成签名参数
+			function buildSign(typeVal) {
 				var appKey = $("input[name='appKey']");
 				var appSecret = $("input[name='appSecret']");
 				var device = $("input[name='device']");
@@ -196,34 +310,15 @@
 				var priceType = $("input[name='priceType']");
 				var str = $("input[name='str']");
 				var context = $("input[name='context']");
-				var money = $("input[name='money']");
-				var broadcast_type = $("input[name='broadcast_type']");
-				var request_id = $("input[name='request_id']");
-				var biz_type = $("input[name='biz_type']");
-				console.log(appKey.val())
-				console.log(appSecret.val())
-				console.log(device.val())
-				console.log(priceType.val())
-				console.log(str.val())
-				console.log(context.val())
-				if (appKey.val() == "") {
-					return alert("appKey不能为空")
-				} else if (appSecret.val() == "") {
-					return alert("appSecret不能为空")
-				} else if (device.val() == "") {
-					return alert("device不能为空")
-				} else if (str.val() == "") {
-					return alert("str不能为空")
-				}
+
 				if (typeVal == 1) {
-					if (priceType.val() == "") {
-						return alert("priceType不能为空")
-					} else {
-						var string = "appKey=" + appKey.val() + "&device=" + device.val() + "&price=" + price.val() + "&priceType=" +
-							priceType.val() + "&str=" + str.val() + "&type=" + typeVal + appSecret.val()
-						var md5_str = md5(string).toUpperCase();
-						console.log(md5_str)
-						var parameter = {
+					var string = "appKey=" + appKey.val() + "&device=" + device.val() + "&price=" + price.val() + "&priceType=" +
+						priceType.val() + "&str=" + str.val() + "&type=" + typeVal + appSecret.val();
+					var md5_str = md5(string).toUpperCase();
+					return {
+						string: string,
+						sign: md5_str,
+						params: {
 							appKey: appKey.val(),
 							device: device.val(),
 							price: price.val(),
@@ -232,19 +327,15 @@
 							type: typeVal,
 							sign: md5_str
 						}
-						$("#strText").text(string);
-						$("#signTxt").text(md5_str);
-						$("#parameter").text(JSON.stringify(parameter));
-					}
-				} else if(typeVal == 10 || typeVal == 7){
-					if (context.val() == "") {
-						return alert("context不能为空")
-					} else {
-						var string = "appKey=" + appKey.val() + "&context=" + context.val() + "&device=" + device.val() + "&str=" +
-							str.val() + "&type=" + typeVal + appSecret.val()
-						var md5_str = md5(string).toUpperCase();
-						console.log(md5_str)
-						var parameter = {
+					};
+				} else {
+					var string = "appKey=" + appKey.val() + "&context=" + context.val() + "&device=" + device.val() + "&str=" +
+						str.val() + "&type=" + typeVal + appSecret.val();
+					var md5_str = md5(string).toUpperCase();
+					return {
+						string: string,
+						sign: md5_str,
+						params: {
 							appKey: appKey.val(),
 							device: device.val(),
 							context: context.val(),
@@ -252,165 +343,245 @@
 							type: typeVal,
 							sign: md5_str
 						}
-						$("#strText").text(string);
-						$("#signTxt").text(md5_str);
-						$("#parameter").text(JSON.stringify(parameter));
-					}
-				}else if(typeVal == 33){
-					if (context.val() == "") {
-						return alert("context不能为空")
-					} else {
-						var string = "appKey=" + appKey.val() + "&context=" + context.val() + "&device=" + device.val() + "&str=" +
-							str.val() + "&type=" + typeVal + appSecret.val()
-						var md5_str = md5(string).toUpperCase();
-						console.log(md5_str)
-						var parameter = {
-							appKey: appKey.val(),
-							device: device.val(),
-							context: context.val(),
-							str: str.val(),
-							type: typeVal,
-							sign: md5_str
-						}
-						$("#strText").text(string);
-						$("#signTxt").text(md5_str);
-						$("#parameter").text(JSON.stringify(parameter));
-					}
-				}else{
-					return alert("设备类型不存在")
+					};
 				}
-			})
+			}
+
+			$("#signBtn").click(function() {
+				var typeVal = $("#select_id").val();
+				var appKey = $("input[name='appKey']");
+				var appSecret = $("input[name='appSecret']");
+				var device = $("input[name='device']");
+				var priceType = $("input[name='priceType']");
+				var str = $("input[name='str']");
+				var context = $("input[name='context']");
+
+				if (appKey.val() == "") return alert("appKey不能为空");
+				if (appSecret.val() == "") return alert("appSecret不能为空");
+				if (device.val() == "") return alert("device不能为空");
+				if (str.val() == "") return alert("str不能为空");
+
+				if (typeVal == 1) {
+					if (priceType.val() == "") return alert("priceType不能为空");
+				} else {
+					if (context.val() == "") return alert("context不能为空");
+				}
+
+				var result = buildSign(typeVal);
+				$("#strText").text(result.string);
+				$("#signTxt").text(result.sign);
+				$("#parameter").text(JSON.stringify(result.params));
+			});
+
 			$("#pubBtn").click(function() {
 				var typeVal = $("#select_id").val();
 				var appKey = $("input[name='appKey']");
 				var appSecret = $("input[name='appSecret']");
 				var device = $("input[name='device']");
-				var price = $("input[name='price']");
 				var priceType = $("input[name='priceType']");
 				var str = $("input[name='str']");
 				var context = $("input[name='context']");
-				var money = $("input[name='money']");
-				var broadcast_type = $("input[name='broadcast_type']");
-				var request_id = $("input[name='request_id']");
-				var biz_type = $("input[name='biz_type']");
-				if (appKey.val() == "") {
-					return alert("appKey不能为空")
-				} else if (appSecret.val() == "") {
-					return alert("appSecret不能为空")
-				} else if (device.val() == "") {
-					return alert("device不能为空")
-				} else if (str.val() == "") {
-					return alert("str不能为空")
-				}
+
+				if (appKey.val() == "") return alert("appKey不能为空");
+				if (appSecret.val() == "") return alert("appSecret不能为空");
+				if (device.val() == "") return alert("device不能为空");
+				if (str.val() == "") return alert("str不能为空");
+
 				if (typeVal == 1) {
-					if (priceType.val() == "") {
-						return alert("priceType不能为空")
-					} else {
-						var string = "appKey=" + appKey.val() + "&device=" + device.val() + "&price=" + price.val() + "&priceType=" +
-							priceType.val() + "&str=" + str.val() + "&type=" + typeVal + appSecret.val()
-						var md5_str = md5(string).toUpperCase();
-						var parameter = {
-							appKey: appKey.val(),
-							device: device.val(),
-							price: price.val(),
-							priceType: priceType.val(),
-							str: str.val(),
-							type: typeVal,
-							sign: md5_str
-						}
-						$("#strText").text(string);
-						$("#signTxt").text(md5_str);
-						$("#parameter").text(JSON.stringify(parameter));
-						axios.post('https://open.gzfyit.com/iot-cloud/v1/third/send', {
-								appKey: appKey.val(),
-								device: device.val(),
-								price: price.val(),
-								priceType: priceType.val(),
-								str: str.val(),
-								type: typeVal,
-								sign: md5_str
-							})
-							.then(function(response) {
-								console.log(response);
-								$("#response").text(JSON.stringify(response.data));
-							})
-							.catch(function(error) {
-								console.log(error);
-							});
-					}
-				} else  if(typeVal == 10 || typeVal == 7){
-					if (context.val() == "") {
-						return alert("context不能为空")
-					} else {
-						var string = "appKey=" + appKey.val() + "&context=" + context.val() + "&device=" + device.val() + "&str=" +
-							str.val() + "&type=" + typeVal + appSecret.val()
-						var md5_str = md5(string).toUpperCase();
-						var parameter = {
-							appKey: appKey.val(),
-							device: device.val(),
-							context: context.val(),
-							str: str.val(),
-							type: typeVal,
-							sign: md5_str
-						}
-						$("#strText").text(string);
-						$("#signTxt").text(md5_str);
-						$("#parameter").text(JSON.stringify(parameter));
-						axios.post('https://open.gzfyit.com/iot-cloud/v1/third/send', {
-								appKey: appKey.val(),
-								device: device.val(),
-								context: context.val(),
-								str: str.val(),
-								type: typeVal,
-								sign: md5_str
-							})
-							.then(function(response) {
-								console.log(response);
-								$("#response").text(JSON.stringify(response.data));
-							})
-							.catch(function(error) {
-								console.log(error);
-							});
-					}
-				}else if(typeVal == 33){
-					if (context.val() == "") {
-						return alert("context不能为空")
-					} else {
-						var string = "appKey=" + appKey.val() + "&context=" + context.val() + "&device=" + device.val() + "&str=" +
-							str.val() + "&type=" + typeVal + appSecret.val()
-						var md5_str = md5(string).toUpperCase();
-						console.log(md5_str)
-						var parameter = {
-							appKey: appKey.val(),
-							device: device.val(),
-							context: context.val(),
-							str: str.val(),
-							type: typeVal,
-							sign: md5_str
-						}
-						$("#strText").text(string);
-						$("#signTxt").text(md5_str);
-						$("#parameter").text(JSON.stringify(parameter));
-						axios.post('https://open.gzfyit.com/iot-cloud/v1/third/send', {
-								appKey: appKey.val(),
-								device: device.val(),
-								context: context.val(),
-								str: str.val(),
-								type: typeVal,
-								sign: md5_str
-							})
-							.then(function(response) {
-								console.log(response);
-								$("#response").text(JSON.stringify(response.data));
-							})
-							.catch(function(error) {
-								console.log(error);
-							});
-					}
-				}else{
-					return alert("设备类型不存在")
+					if (priceType.val() == "") return alert("priceType不能为空");
+				} else {
+					if (context.val() == "") return alert("context不能为空");
 				}
-			})
+
+				var result = buildSign(typeVal);
+				$("#strText").text(result.string);
+				$("#signTxt").text(result.sign);
+				$("#parameter").text(JSON.stringify(result.params));
+
+				axios.post('https://open.gzfyit.com/iot-cloud/v1/third/send', result.params)
+					.then(function(response) {
+						console.log(response);
+						$("#response").text(JSON.stringify(response.data));
+					})
+					.catch(function(error) {
+						console.log(error);
+						$("#response").text("请求失败: " + (error.message || "网络错误"));
+					});
+			});
+
+			// ==================== 压力测试 ====================
+			var stressTimer = null;
+			var stressRunning = false;
+			var stressCount = 0;
+			var stressTotal = 0;
+			var stressSuccess = 0;
+			var stressFail = 0;
+			var stressCurrentAmount = 0;
+			var stressMaxLog = 50; // 最多保留50条日志
+
+			function setStressStatus(status, text) {
+				var badge = $("#stressStatus .status-badge");
+				badge.removeClass("status-idle status-running status-stopped");
+				if (status === "running") {
+					badge.addClass("status-running").text("运行中");
+				} else if (status === "stopped") {
+					badge.addClass("status-stopped").text("已停止");
+				} else {
+					badge.addClass("status-idle").text("空闲");
+				}
+				$("#stressProgress").text(text);
+			}
+
+			function addStressLog(level, msg) {
+				var logEl = $("#stressLog");
+				// 移除空提示
+				logEl.find(".log-empty").remove();
+				var now = new Date();
+				var time = now.getHours().toString().padStart(2, "0") + ":" +
+					now.getMinutes().toString().padStart(2, "0") + ":" +
+					now.getSeconds().toString().padStart(2, "0");
+				var cls = "log-" + level;
+				var entry = $("<div class='log-entry " + cls + "'><span class='log-time'>" + time + "</span><span class='log-msg'>" + msg + "</span></div>");
+				logEl.prepend(entry);
+				// 限制日志条数
+				var entries = logEl.find(".log-entry");
+				if (entries.length > stressMaxLog) {
+					entries.slice(stressMaxLog).remove();
+				}
+			}
+
+			function doStressPush() {
+				if (!stressRunning) return;
+
+				stressCount++;
+				var totalCountVal = parseInt($("#totalCount").val()) || 0;
+				var step = parseFloat($("#stepAmount").val()) || 0.01;
+
+				// 更新当前金额
+				var amountStr = stressCurrentAmount.toFixed(2);
+
+				// 替换 context 模板中的 {amount}
+				var pattern = $("#contextPattern").val() || "{amount}";
+				var contextText = pattern.replace(/\{amount\}/g, amountStr);
+
+				// 生成随机 str
+				var strVal = randomStr(16);
+				$("input[name='str']").val(strVal);
+				$("input[name='context']").val(contextText);
+
+				var typeVal = $("#select_id").val();
+				var appKey = $("input[name='appKey']");
+
+				if (appKey.val() == "") {
+					addStressLog("error", "appKey 为空，停止压测");
+					stopStress();
+					return;
+				}
+
+				var result = buildSign(typeVal);
+
+				addStressLog("info", "#" + stressCount + " 金额=" + amountStr + " 元 → 推送中…");
+
+				axios.post('https://open.gzfyit.com/iot-cloud/v1/third/send', result.params)
+					.then(function(response) {
+						stressSuccess++;
+						var code = response.data && response.data.code;
+						var msg = response.data && (response.data.msg || response.data.message);
+						addStressLog("success", "#" + stressCount + " 金额=" + amountStr + " ✓ " + (msg || JSON.stringify(response.data)));
+						$("#response").text(JSON.stringify(response.data));
+						$("#strText").text(result.string);
+						$("#signTxt").text(result.sign);
+						$("#parameter").text(JSON.stringify(result.params));
+						updateStressProgress();
+					})
+					.catch(function(error) {
+						stressFail++;
+						addStressLog("error", "#" + stressCount + " 金额=" + amountStr + " ✗ " + (error.message || "网络错误"));
+						updateStressProgress();
+					});
+
+				// 累加金额
+				stressCurrentAmount += step;
+
+				// 检查是否达到次数上限
+				if (totalCountVal > 0 && stressCount >= totalCountVal) {
+					addStressLog("info", "已推送 " + stressCount + " 次，达到上限，停止压测");
+					stopStress();
+				}
+			}
+
+			function updateStressProgress() {
+				var totalCountVal = parseInt($("#totalCount").val()) || 0;
+				var progressText = "已推送: " + stressCount;
+				if (totalCountVal > 0) {
+					progressText += " / " + totalCountVal;
+				}
+				progressText += " | 成功: " + stressSuccess + " | 失败: " + stressFail;
+				if (stressCount > 0) {
+					progressText += " | 成功率: " + (stressSuccess / stressCount * 100).toFixed(1) + "%";
+				}
+				$("#stressProgress").text(progressText);
+			}
+
+			function stopStress() {
+				stressRunning = false;
+				if (stressTimer) {
+					clearInterval(stressTimer);
+					stressTimer = null;
+				}
+				setStressStatus("stopped", $("#stressProgress").text());
+				$("#stressStartBtn").prop("disabled", false);
+				$("#stressStopBtn").prop("disabled", true);
+			}
+
+			$("#stressStartBtn").click(function() {
+				var appKey = $("input[name='appKey']");
+				var appSecret = $("input[name='appSecret']");
+				var device = $("input[name='device']");
+
+				if (appKey.val() == "") return alert("请先填写 appKey");
+				if (appSecret.val() == "") return alert("请先填写 appSecret");
+				if (device.val() == "") return alert("请先填写 device");
+
+				var interval = parseFloat($("#intervalSec").val());
+				if (!interval || interval < 0.5) return alert("推送间隔不能小于 0.5 秒");
+
+				// 重置状态
+				stressCount = 0;
+				stressSuccess = 0;
+				stressFail = 0;
+				stressCurrentAmount = parseFloat($("#initAmount").val()) || 0.01;
+				stressRunning = true;
+
+				setStressStatus("running", "准备开始…");
+				$("#stressStartBtn").prop("disabled", true);
+				$("#stressStopBtn").prop("disabled", false);
+
+				addStressLog("info", "====== 压力测试开始 ======");
+				addStressLog("info", "起始金额: " + stressCurrentAmount.toFixed(2) + " 元 | 步长: " + (parseFloat($("#stepAmount").val()) || 0.01).toFixed(2) + " 元 | 间隔: " + interval + " 秒");
+
+				// 立即推送第一笔
+				doStressPush();
+
+				// 定时推送
+				stressTimer = setInterval(function() {
+					doStressPush();
+				}, interval * 1000);
+			});
+
+			$("#stressStopBtn").click(function() {
+				addStressLog("info", "手动停止压测，共推送 " + stressCount + " 次");
+				stopStress();
+			});
+
+			$("#stressClearBtn").click(function() {
+				$("#stressLog").html('<div class="log-empty">等待开始推送…</div>');
+				stressCount = 0;
+				stressSuccess = 0;
+				stressFail = 0;
+				$("#stressProgress").text("--");
+				setStressStatus("idle", "--");
+			});
 		});
 	</script>
 
