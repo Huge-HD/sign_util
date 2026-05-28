@@ -1,0 +1,38 @@
+- generic [ref=e2]:
+  - heading "广州飞鱼信息科技云喇叭调试工具" [level=1] [ref=e4]: 广州飞鱼信息科技云喇叭调试工具
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: type
+      - combobox [ref=e10]:
+        - option "1" [selected]
+        - option "7"
+        - option "10"
+        - option "33"
+    - generic [ref=e11]:
+      - generic [ref=e12]: appKey
+      - textbox [ref=e14]
+    - generic [ref=e15]:
+      - generic [ref=e16]: appSecret
+      - textbox [ref=e18]
+    - generic [ref=e19]:
+      - generic [ref=e20]: device
+      - textbox [ref=e22]
+    - generic [ref=e23]:
+      - generic [ref=e24]: price
+      - generic [ref=e26]:
+        - textbox [ref=e28]
+        - generic [ref=e29]: 以分为单位，不要输入小数点
+    - generic [ref=e30]:
+      - generic [ref=e31]: priceType
+      - textbox [ref=e33]
+    - generic [ref=e34]:
+      - generic [ref=e35]: str
+      - generic [ref=e37]:
+        - textbox [ref=e39]
+        - generic [ref=e40]: 随机字符串，每次测试都要不同
+    - generic [ref=e42]: 参数拼接
+    - generic [ref=e45]: sign
+    - generic [ref=e48]: 接口传参
+    - button "签名" [ref=e51] [cursor=pointer]
+    - button "推送一笔" [ref=e53] [cursor=pointer]
+    - generic [ref=e55]: 返回结果
